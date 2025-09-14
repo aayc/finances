@@ -295,3 +295,101 @@ def categorize_accounts(accounts: List[str]) -> Dict[str, List[str]]:
             categories["Equity"].append(account)
 
     return categories
+
+
+def get_available_months_with_data(entries: List[data.Directive], year: int) -> List[int]:
+    """Get list of months that have transaction data for a given year.
+
+    Args:
+        entries: List of beancount entries
+        year: Year to check for data
+
+    Returns:
+        List of month numbers (1-12) that have data
+    """
+    months_with_data = set()
+
+    for entry in entries:
+        if isinstance(entry, data.Transaction) and entry.date.year == year:
+            for posting in entry.postings:
+                if posting.account and posting.units:
+                    if posting.account.startswith(
+                        ACCOUNT_TYPES["INCOME"]
+                    ) or posting.account.startswith(ACCOUNT_TYPES["EXPENSES"]):
+                        months_with_data.add(entry.date.month)
+
+    return sorted(list(months_with_data))
+
+
+def get_budget_data(entries: List[data.Directive], options_map: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract budget information from beancount entries.
+
+    Args:
+        entries: List of beancount entries
+        options_map: Beancount options map
+
+    Returns:
+        Dictionary containing budget data organized by account
+    """
+    budgets = {}
+
+    # Look for budget entries in the beancount file
+    for entry in entries:
+        if isinstance(entry, data.Custom) and entry.type == "budget":
+            # Parse budget entries - format: 2025-01-01 custom "budget" Expenses:Joint:Dining "monthly" 200.00 USD
+            if len(entry.values) >= 3:
+                # Extract account name from ValueType
+                account = entry.values[0].value if hasattr(entry.values[0], "value") else str(entry.values[0])
+
+                # Extract frequency from ValueType
+                frequency = entry.values[1].value if hasattr(entry.values[1], "value") else str(entry.values[1])
+
+                # Extract amount and currency from ValueType containing Amount
+                amount_value = entry.values[2].value if hasattr(entry.values[2], "value") else entry.values[2]
+
+                if hasattr(amount_value, "number") and hasattr(amount_value, "currency"):
+                    amount = float(amount_value.number)
+                    currency = amount_value.currency
+                else:
+                    # Fallback parsing if format is different
+                    try:
+                        amount_str = str(amount_value)
+                        parts = amount_str.split()
+                        amount = float(parts[0])
+                        currency = parts[1] if len(parts) > 1 else "USD"
+                    except (ValueError, IndexError):
+                        continue
+
+                # Handle different budget frequencies
+                if frequency == "monthly":
+                    # Apply budget to all months of the year
+                    year = entry.date.year
+                    for month in range(1, 13):
+                        year_month = f"{year}-{month:02d}"
+
+                        if year_month not in budgets:
+                            budgets[year_month] = {}
+
+                        budgets[year_month][account] = {
+                            "amount": amount,
+                            "currency": currency,
+                            "date": entry.date,
+                            "frequency": frequency
+                        }
+
+                elif frequency == "yearly":
+                    # Store yearly budgets separately - don't break them down to monthly
+                    year = entry.date.year
+                    year_key = f"{year}-yearly"
+
+                    if year_key not in budgets:
+                        budgets[year_key] = {}
+
+                    budgets[year_key][account] = {
+                        "amount": amount,
+                        "currency": currency,
+                        "date": entry.date,
+                        "frequency": frequency
+                    }
+
+    return budgets
