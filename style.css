@@ -1,0 +1,131 @@
+/* Custom CSS for OurFinance Streamlit App */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Global styles */
+.stApp {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Header styling */
+.main-header {
+    background: linear-gradient(90deg, #1e3a8a, #3b82f6);
+    padding: 1rem;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* Metric card styling */
+.metric-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid #3b82f6;
+    margin: 1rem 0;
+}
+
+/* Chart container styling */
+.chart-container {
+    background: white;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin: 1rem 0;
+}
+
+/* Sidebar styling */
+.sidebar .sidebar-content {
+    background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+    border-radius: 10px;
+}
+
+/* Button styling */
+.stButton > button {
+    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(90deg, #1d4ed8, #1e40af);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Success/Info/Warning styling */
+.stSuccess {
+    background-color: #d1fae5;
+    border-color: #059669;
+    color: #065f46;
+}
+
+.stInfo {
+    background-color: #dbeafe;
+    border-color: #2563eb;
+    color: #1e40af;
+}
+
+.stWarning {
+    background-color: #fef3c7;
+    border-color: #d97706;
+    color: #92400e;
+}
+
+/* Table styling */
+.dataframe {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Navigation styling */
+.nav-item {
+    padding: 0.5rem 1rem;
+    margin: 0.25rem 0;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
+}
+
+.nav-item:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Custom classes for specific components */
+.balance-positive {
+    color: #059669;
+    font-weight: 600;
+}
+
+.balance-negative {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.account-category {
+    background: #f1f5f9;
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    border-left: 4px solid #3b82f6;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .main-header {
+        padding: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+    .metric-card {
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+}
