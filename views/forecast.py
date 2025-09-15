@@ -36,7 +36,18 @@ def show_forecast(entries: List, options_map: Dict[str, Any]) -> None:
         income_trends = bc_utils.get_monthly_trends(entries, options_map, "Income:", 6)
         expense_trends = bc_utils.get_monthly_trends(entries, options_map, "Expenses:", 6)
 
-        avg_monthly_income = income_trends["amount"].abs().mean() if len(income_trends) > 0 else 0
+        # Calculate average monthly income, filtering out extreme outliers
+        if len(income_trends) > 0:
+            income_amounts = income_trends["amount"].abs()
+            # Filter out outliers that are more than 3x the median (likely one-time bonuses, stock sales, etc.)
+            median_income = income_amounts.median()
+            if median_income > 0:
+                filtered_income = income_amounts[income_amounts <= median_income * 3]
+                avg_monthly_income = filtered_income.mean() if len(filtered_income) > 0 else median_income
+            else:
+                avg_monthly_income = median_income
+        else:
+            avg_monthly_income = 0
         avg_monthly_expenses = (
             expense_trends["amount"].abs().mean() if len(expense_trends) > 0 else 0
         )

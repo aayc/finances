@@ -55,46 +55,105 @@ def build_account_tree(balances_df: pd.DataFrame) -> Dict:
     return tree
 
 
-def get_balance_history(entries: List, account_pattern: str, months: int = 12) -> pd.DataFrame:
-    """Get balance history for an account or account pattern over time.
+def format_currency_for_chart(value: float) -> str:
+    """Format currency values for chart labels with K abbreviation.
 
     Args:
-        entries: List of beancount entries
-        account_pattern: Account name or pattern (e.g., "Assets" or "Assets:US:Bank")
+        value: The numeric value to format
+
+    Returns:
+        Formatted string like "$1.23K" or "$456.78"
+    """
+    if abs(value) >= 1000:
+        return f"${value/1000:.2f}K"
+    else:
+        return f"${value:.2f}"
+
+
+@st.cache_data
+def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.DataFrame]:
+    """Precompute balance histories for all major account types to improve performance.
+
+    This function computes balance histories for all main account patterns in one pass,
+    which is much more efficient than computing them separately.
+
+    Args:
+        _entries: List of beancount entries (prefixed with _ for caching)
         months: Number of months of history to get
 
     Returns:
-        DataFrame with date and balance columns
+        Dictionary mapping account patterns to their balance history DataFrames
     """
-    history = []
+    from collections import defaultdict
+    from beancount.core import data
+
     end_date = datetime.now().date()
 
+    # Generate list of month dates we want to calculate
+    month_dates = []
     for i in range(months):
-        # Calculate date for each month
         month_date = end_date.replace(day=1) - timedelta(days=32*i)
         month_date = month_date.replace(day=1)  # First day of month
+        month_dates.append(month_date)
 
-        try:
-            # Get balances for this date
-            balances = bc_utils.get_account_balances(entries, {}, month_date)
+    # Sort dates chronologically for processing
+    month_dates.sort()
 
-            # Filter accounts matching the pattern
-            if account_pattern == "Assets":
-                matching_balances = balances[balances["account"].str.startswith("Assets:")]
-            elif account_pattern == "Liabilities":
-                matching_balances = balances[balances["account"].str.startswith("Liabilities:")]
-            elif account_pattern == "Income":
-                matching_balances = balances[balances["account"].str.startswith("Income:")]
-            elif account_pattern == "Expenses":
-                matching_balances = balances[balances["account"].str.startswith("Expenses:")]
-            else:
-                # Exact match or prefix match
-                matching_balances = balances[
-                    balances["account"].str.startswith(account_pattern + ":") |
-                    (balances["account"] == account_pattern)
-                ]
+    # Get all transaction entries and sort by date
+    transactions = [entry for entry in _entries if isinstance(entry, data.Transaction)]
+    transactions.sort(key=lambda x: x.date)
 
-            total_balance = matching_balances["amount"].sum() if len(matching_balances) > 0 else 0
+    # Track balances for all accounts
+    all_balances = {}
+
+    # Process all major account patterns
+    patterns = ["Assets", "Liabilities", "Income", "Expenses"]
+
+    # Add specific account patterns that might be requested
+    specific_accounts = set()
+    for transaction in transactions:
+        for posting in transaction.postings:
+            if posting.account:
+                account_parts = posting.account.split(':')
+                # Add patterns like "Assets:US", "Assets:US:Bank", etc.
+                for i in range(2, len(account_parts) + 1):
+                    specific_accounts.add(':'.join(account_parts[:i]))
+
+    all_patterns = patterns + list(specific_accounts)
+
+    for pattern in all_patterns:
+        account_balances = defaultdict(float)
+        history = []
+        transaction_idx = 0
+
+        for month_date in month_dates:
+            # Process all transactions up to this month date
+            while transaction_idx < len(transactions) and transactions[transaction_idx].date <= month_date:
+                transaction = transactions[transaction_idx]
+
+                for posting in transaction.postings:
+                    if posting.account and posting.units:
+                        account_matches = False
+
+                        if pattern == "Assets":
+                            account_matches = posting.account.startswith("Assets:")
+                        elif pattern == "Liabilities":
+                            account_matches = posting.account.startswith("Liabilities:")
+                        elif pattern == "Income":
+                            account_matches = posting.account.startswith("Income:")
+                        elif pattern == "Expenses":
+                            account_matches = posting.account.startswith("Expenses:")
+                        else:
+                            account_matches = (posting.account.startswith(pattern + ":") or
+                                             posting.account == pattern)
+
+                        if account_matches:
+                            account_balances[posting.account] += float(posting.units.number)
+
+                transaction_idx += 1
+
+            # Calculate total balance for all matching accounts
+            total_balance = sum(account_balances.values())
 
             history.append({
                 "date": month_date,
@@ -102,14 +161,104 @@ def get_balance_history(entries: List, account_pattern: str, months: int = 12) -
                 "month_name": month_date.strftime("%Y-%m")
             })
 
-        except Exception:
-            # If we can't get balance for this date, skip it
-            continue
+        # Sort by date (reverse chronological for display)
+        history_df = pd.DataFrame(history)
+        if len(history_df) > 0:
+            history_df = history_df.sort_values("date", ascending=False)
 
-    # Sort by date
+        all_balances[pattern] = history_df
+
+    return all_balances
+
+
+@st.cache_data
+def get_balance_history(_entries: List, account_pattern: str, months: int = 12) -> pd.DataFrame:
+    """Get balance history for an account or account pattern over time.
+
+    Optimized version that uses precomputed balance data when possible.
+
+    Args:
+        _entries: List of beancount entries (prefixed with _ for caching)
+        account_pattern: Account name or pattern (e.g., "Assets" or "Assets:US:Bank")
+        months: Number of months of history to get
+
+    Returns:
+        DataFrame with date and balance columns
+    """
+    # Try to use precomputed data first
+    try:
+        all_balances = _precompute_all_balances(_entries, months)
+        if account_pattern in all_balances:
+            return all_balances[account_pattern]
+    except Exception:
+        # Fall back to individual calculation if precomputation fails
+        pass
+
+    # Fallback: compute individual balance history
+    from collections import defaultdict
+    from beancount.core import data
+
+    end_date = datetime.now().date()
+
+    # Generate list of month dates we want to calculate
+    month_dates = []
+    for i in range(months):
+        month_date = end_date.replace(day=1) - timedelta(days=32*i)
+        month_date = month_date.replace(day=1)  # First day of month
+        month_dates.append(month_date)
+
+    # Sort dates chronologically for processing
+    month_dates.sort()
+
+    # Track running balances per account
+    account_balances = defaultdict(float)
+    history = []
+
+    # Get all transaction entries and sort by date
+    transactions = [entry for entry in _entries if isinstance(entry, data.Transaction)]
+    transactions.sort(key=lambda x: x.date)
+
+    # Find which accounts match our pattern
+    def account_matches_pattern(account: str) -> bool:
+        if account_pattern == "Assets":
+            return account.startswith("Assets:")
+        elif account_pattern == "Liabilities":
+            return account.startswith("Liabilities:")
+        elif account_pattern == "Income":
+            return account.startswith("Income:")
+        elif account_pattern == "Expenses":
+            return account.startswith("Expenses:")
+        else:
+            return account.startswith(account_pattern + ":") or account == account_pattern
+
+    # Process transactions chronologically
+    transaction_idx = 0
+
+    for month_date in month_dates:
+        # Process all transactions up to this month date
+        while transaction_idx < len(transactions) and transactions[transaction_idx].date <= month_date:
+            transaction = transactions[transaction_idx]
+
+            for posting in transaction.postings:
+                if posting.account and posting.units and account_matches_pattern(posting.account):
+                    # Update running balance for this account
+                    account_balances[posting.account] += float(posting.units.number)
+
+            transaction_idx += 1
+
+        # Calculate total balance for all matching accounts
+        total_balance = sum(account_balances.values())
+
+        history.append({
+            "date": month_date,
+            "balance": total_balance,
+            "month_name": month_date.strftime("%Y-%m")
+        })
+
+    # Sort by date (reverse chronological for display)
     history_df = pd.DataFrame(history)
     if len(history_df) > 0:
-        history_df = history_df.sort_values("date")
+        history_df = history_df.sort_values("date", ascending=False)
 
     return history_df
 
@@ -196,29 +345,93 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
             st.session_state.selected_account = "Assets"
 
         # Show balance history chart at the top
-        st.subheader(f"📈 Balance History: {st.session_state.selected_account}")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.subheader(f"📈 Balance History: {st.session_state.selected_account}")
+        with col2:
+            chart_type = st.selectbox(
+                "Chart Type",
+                ["Cumulative", "Monthly Change"],
+                key="balance_chart_type"
+            )
 
         # Get and display balance history
-        history_df = get_balance_history(entries, st.session_state.selected_account)
+        with st.spinner("Loading balance history..."):
+            history_df = get_balance_history(entries, st.session_state.selected_account)
 
         if len(history_df) > 0:
             fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=history_df["date"],
-                y=history_df["balance"],
-                mode='lines+markers',
-                name=st.session_state.selected_account,
-                line=dict(color='blue', width=3),
-                marker=dict(size=8)
-            ))
 
-            fig.update_layout(
-                title=f"{st.session_state.selected_account} Balance Over Time",
-                xaxis_title="Date",
-                yaxis_title="Balance ($)",
-                hovermode='x unified',
-                height=400
-            )
+            if chart_type == "Cumulative":
+                # Show cumulative balance over time
+                fig.add_trace(go.Scatter(
+                    x=history_df["date"],
+                    y=history_df["balance"],
+                    mode='lines+markers',
+                    name=st.session_state.selected_account,
+                    line=dict(color='blue', width=3),
+                    marker=dict(size=8)
+                ))
+
+                fig.update_layout(
+                    title=f"{st.session_state.selected_account} - Cumulative Balance",
+                    xaxis_title="Date",
+                    yaxis_title="Balance ($)",
+                    hovermode='x unified',
+                    height=400,
+                    yaxis=dict(
+                        tickformat='$,.0f',
+                        tickmode='linear'
+                    )
+                )
+
+                # Update hover template to show currency format
+                fig.update_traces(
+                    hovertemplate='<b>%{fullData.name}</b><br>' +
+                                  'Date: %{x}<br>' +
+                                  'Balance: $%{y:,.2f}<extra></extra>'
+                )
+
+            else:  # Monthly Change
+                # Calculate month-to-month changes
+                history_sorted = history_df.sort_values("date")
+                history_sorted["monthly_change"] = history_sorted["balance"].diff()
+
+                # Remove the first row since it has NaN for change
+                change_df = history_sorted.dropna()
+
+                if len(change_df) > 0:
+                    # Create bar chart for monthly changes
+                    colors = ['green' if x >= 0 else 'red' for x in change_df["monthly_change"]]
+
+                    fig.add_trace(go.Bar(
+                        x=change_df["date"],
+                        y=change_df["monthly_change"],
+                        name="Monthly Change",
+                        marker_color=colors
+                    ))
+
+                    fig.update_layout(
+                        title=f"{st.session_state.selected_account} - Monthly Changes",
+                        xaxis_title="Date",
+                        yaxis_title="Change ($)",
+                        hovermode='x unified',
+                        height=400,
+                        yaxis=dict(
+                            tickformat='$,.0f',
+                            tickmode='linear'
+                        )
+                    )
+
+                    # Update hover template for bar chart
+                    fig.update_traces(
+                        hovertemplate='<b>Monthly Change</b><br>' +
+                                      'Date: %{x}<br>' +
+                                      'Change: $%{y:,.2f}<extra></extra>'
+                    )
+
+                    # Add zero line for reference
+                    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
 
             st.plotly_chart(fig, use_container_width=True)
         else:

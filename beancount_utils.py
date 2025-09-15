@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+import streamlit as st
 from beancount.core import amount as amount_lib
 from beancount.core import data, getters, inventory, realization
 from beancount.core.number import D
@@ -82,13 +83,14 @@ def get_monthly_income_statement(
     return income_df, expense_df
 
 
+@st.cache_data
 def get_account_balances(
-    entries: List[data.Directive], options_map: Dict[str, Any], as_of_date: Optional[date] = None
+    _entries: List[data.Directive], _options_map: Dict[str, Any], as_of_date: Optional[date] = None
 ) -> pd.DataFrame:
     """Get current account balances as of a specific date.
 
     Args:
-        entries: List of beancount entries
+        _entries: List of beancount entries (prefixed with _ for caching)
         options_map: Beancount options map
         as_of_date: Date to calculate balances as of (defaults to today)
 
@@ -99,7 +101,7 @@ def get_account_balances(
         as_of_date = datetime.now().date()
 
     # Filter entries up to the specified date
-    filtered_entries = [entry for entry in entries if entry.date <= as_of_date]
+    filtered_entries = [entry for entry in _entries if entry.date <= as_of_date]
 
     # Get real accounts
     real_root = realization.realize(filtered_entries)
@@ -107,17 +109,17 @@ def get_account_balances(
     balances: List[Dict[str, Union[str, float]]] = []
 
     def extract_balances(account_node: Any, account_name: str = "") -> None:
-        if account_node.balance:
-            for currency, amount in account_node.balance.items():
+        if account_node.balance is not None and not account_node.balance.is_empty():
+            for position in account_node.balance:
                 balances.append(
                     {
                         "account": account_name or account_node.account,
-                        "currency": currency,
-                        "amount": float(amount),
+                        "currency": position.units.currency,
+                        "amount": float(position.units.number),
                     }
                 )
 
-        for child_name, child_node in account_node.children.items():
+        for child_name, child_node in account_node.items():
             child_account = f"{account_name}:{child_name}" if account_name else child_name
             extract_balances(child_node, child_account)
 
@@ -249,7 +251,7 @@ def get_monthly_trends(
                 if entry.date.year == year and entry.date.month == month:
                     for posting in entry.postings:
                         if posting.account and posting.units:
-                            if account_pattern.replace(":", "") in posting.account:
+                            if posting.account.startswith(account_pattern):
                                 total_amount += float(posting.units.number or 0)
 
         trends.append(

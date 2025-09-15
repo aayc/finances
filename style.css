@@ -8,6 +8,18 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Remove excess top padding */
+.main .block-container {
+    padding-top: 1rem;
+}
+
+/* Reduce header spacing */
+h1,
+.stMarkdown h1 {
+    margin-top: 0rem;
+    padding-top: 0rem;
+}
+
 /* Header styling */
 .main-header {
     background: linear-gradient(90deg, #1e3a8a, #3b82f6);
@@ -23,7 +35,7 @@
     background: white;
     padding: 1.5rem;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     border-left: 4px solid #3b82f6;
     margin: 1rem 0;
 }
@@ -33,7 +45,7 @@
     background: white;
     padding: 1rem;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     margin: 1rem 0;
 }
 
@@ -44,7 +56,7 @@
 }
 
 /* Button styling */
-.stButton > button {
+.stButton>button {
     background: linear-gradient(90deg, #3b82f6, #1d4ed8);
     color: white;
     border: none;
@@ -54,7 +66,7 @@
     transition: all 0.3s ease;
 }
 
-.stButton > button:hover {
+.stButton>button:hover {
     background: linear-gradient(90deg, #1d4ed8, #1e40af);
     box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
     transform: translateY(-2px);
@@ -83,7 +95,7 @@
 .dataframe {
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 /* Navigation styling */
@@ -118,12 +130,12 @@
 }
 
 /* Simple Navigation Tab Styling */
-.stRadio > div {
+.stRadio>div {
     flex-direction: column;
     gap: 4px;
 }
 
-.stRadio > div > label {
+.stRadio>div>label {
     background: #f8f9fa;
     border: 1px solid #e9ecef;
     border-radius: 6px;
@@ -137,12 +149,12 @@
     text-align: left;
 }
 
-.stRadio > div > label:hover {
+.stRadio>div>label:hover {
     background: #e9ecef;
     border-color: #adb5bd;
 }
 
-.stRadio > div > label > div[data-testid="stMarkdownContainer"] {
+.stRadio>div>label>div[data-testid="stMarkdownContainer"] {
     font-size: 14px;
     font-weight: 500;
     color: #495057;
@@ -150,18 +162,18 @@
 }
 
 /* Selected tab styling - only bold text, same background */
-.stRadio > div > label:has(input:checked) {
+.stRadio>div>label:has(input:checked) {
     background: #f8f9fa;
     border-color: #6c757d;
 }
 
-.stRadio > div > label:has(input:checked) > div[data-testid="stMarkdownContainer"] {
+.stRadio>div>label:has(input:checked)>div[data-testid="stMarkdownContainer"] {
     color: #495057;
     font-weight: 700;
 }
 
 /* Hide radio buttons */
-.stRadio > div > label > div:first-child {
+.stRadio>div>label>div:first-child {
     display: none;
 }
 
@@ -182,7 +194,7 @@
         margin: 0.5rem 0;
     }
 
-    .stRadio > div > label {
+    .stRadio>div>label {
         padding: 12px 16px;
         font-size: 13px;
     }

@@ -83,33 +83,6 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
             st.warning("No transactions match your filters.")
             return
 
-        # Summary statistics
-        st.subheader("Transaction Summary")
-
-        total_transactions = len(transactions_df)
-        total_inflow = transactions_df[transactions_df["amount"] > 0]["amount"].sum()
-        total_outflow = abs(transactions_df[transactions_df["amount"] < 0]["amount"].sum())
-        net_amount = total_inflow - total_outflow
-
-        show_summary_metrics([
-            {
-                "label": "Total Transactions",
-                "value": f"{total_transactions:,}"
-            },
-            {
-                "label": "Total Inflow",
-                "value": f"${total_inflow:,.2f}"
-            },
-            {
-                "label": "Total Outflow",
-                "value": f"${total_outflow:,.2f}"
-            },
-            {
-                "label": "Net Amount",
-                "value": f"${net_amount:,.2f}"
-            }
-        ])
-
         # Transaction table
         st.subheader("Transactions")
 

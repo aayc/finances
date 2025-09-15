@@ -90,14 +90,33 @@ def load_beancount_data() -> Tuple[List[data.Directive], List[Any], Dict[str, An
 def main() -> None:
     """Main application entry point."""
 
-    # Sidebar navigation with vertical tabs
+    # Get current page from URL query parameter
+    query_params = st.query_params
+    current_page_from_url = query_params.get("page", "Income Statement")
+
+    # Ensure the page from URL is valid
     pages = list(PAGE_TITLES.keys())
+    if current_page_from_url not in pages:
+        current_page_from_url = "Income Statement"
+
+    # Find the index for the current page
+    try:
+        current_page_index = pages.index(current_page_from_url)
+    except ValueError:
+        current_page_index = 0
+
+    # Sidebar navigation with vertical tabs
     page = st.sidebar.radio(
         "Navigation",
         pages,
         format_func=lambda x: PAGE_TITLES[x],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        index=current_page_index
     )
+
+    # Update URL when page changes
+    if page != current_page_from_url:
+        st.query_params.page = page
 
     # Load data
     entries, errors, options_map = load_beancount_data()
