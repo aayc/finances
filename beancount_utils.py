@@ -191,6 +191,97 @@ def get_transactions(
     return transactions_df
 
 
+def get_grouped_transactions(
+    entries: List[data.Directive],
+    options_map: Dict[str, Any],
+    account_filter: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> pd.DataFrame:
+    """Get transaction data grouped by transaction entry (double-entry grouped together).
+
+    Args:
+        entries: List of beancount entries
+        options_map: Beancount options map
+        account_filter: Filter transactions by account name (partial match)
+        start_date: Earliest transaction date to include
+        end_date: Latest transaction date to include
+
+    Returns:
+        DataFrame with grouped transaction details
+    """
+    grouped_transactions: List[Dict[str, Any]] = []
+
+    for entry in entries:
+        if isinstance(entry, data.Transaction):
+            # Date filtering
+            if start_date and entry.date < start_date:
+                continue
+            if end_date and entry.date > end_date:
+                continue
+
+            # Check if transaction matches account filter (if any posting matches)
+            if account_filter:
+                matches_filter = any(account_filter in posting.account for posting in entry.postings if posting.account)
+                if not matches_filter:
+                    continue
+
+            # Group all postings for this transaction
+            accounts = []
+            amounts = []
+            currencies = []
+
+            for posting in entry.postings:
+                if posting.units and posting.account:
+                    accounts.append(posting.account)
+                    amounts.append(float(posting.units.number or 0))
+                    currencies.append(posting.units.currency)
+
+            # Create a summary of the transaction
+            if accounts:
+                # Find the main accounts (usually the ones with opposite signs)
+                positive_accounts = [acc for i, acc in enumerate(accounts) if amounts[i] > 0]
+                negative_accounts = [acc for i, acc in enumerate(accounts) if amounts[i] < 0]
+
+                # Create a readable account summary
+                if positive_accounts and negative_accounts:
+                    account_summary = f"{', '.join(negative_accounts[:2])} → {', '.join(positive_accounts[:2])}"
+                    if len(negative_accounts) > 2 or len(positive_accounts) > 2:
+                        account_summary += " (+more)"
+                else:
+                    account_summary = ', '.join(accounts[:3])
+                    if len(accounts) > 3:
+                        account_summary += f" (+{len(accounts)-3} more)"
+
+                # Get the main amount (usually the largest absolute value)
+                main_amount = max(amounts, key=abs) if amounts else 0
+                main_currency = currencies[0] if currencies else "USD"
+
+                grouped_transactions.append(
+                    {
+                        "date": entry.date,
+                        "accounts": account_summary,
+                        "all_accounts": accounts,
+                        "description": entry.narration,
+                        "currency": main_currency,
+                        "amount": main_amount,
+                        "payee": getattr(entry, "payee", ""),
+                        "tags": list(entry.tags) if entry.tags else [],
+                        "links": list(entry.links) if entry.links else [],
+                        "posting_count": len(accounts)
+                    }
+                )
+
+    transactions_df = pd.DataFrame(grouped_transactions)
+
+    if len(transactions_df) > 0:
+        transactions_df = transactions_df.sort_values("date", ascending=False)
+        # Convert date column to datetime if it isn't already
+        transactions_df["date"] = pd.to_datetime(transactions_df["date"])
+
+    return transactions_df
+
+
 def get_account_hierarchy(entries: List[data.Directive]) -> Dict[str, List[str]]:
     """Get the account hierarchy for display purposes.
 
@@ -380,18 +471,22 @@ def get_budget_data(entries: List[data.Directive], options_map: Dict[str, Any]) 
                         }
 
                 elif frequency == "yearly":
-                    # Store yearly budgets separately - don't break them down to monthly
+                    # Break down yearly budgets into monthly amounts for all months
                     year = entry.date.year
-                    year_key = f"{year}-yearly"
+                    monthly_amount = amount / 12  # Divide annual budget by 12 months
 
-                    if year_key not in budgets:
-                        budgets[year_key] = {}
+                    for month in range(1, 13):
+                        year_month = f"{year}-{month:02d}"
 
-                    budgets[year_key][account] = {
-                        "amount": amount,
-                        "currency": currency,
-                        "date": entry.date,
-                        "frequency": frequency
-                    }
+                        if year_month not in budgets:
+                            budgets[year_month] = {}
+
+                        budgets[year_month][account] = {
+                            "amount": monthly_amount,
+                            "currency": currency,
+                            "date": entry.date,
+                            "frequency": "yearly_monthly",  # Mark as originally yearly
+                            "annual_amount": amount  # Store original annual amount
+                        }
 
     return budgets

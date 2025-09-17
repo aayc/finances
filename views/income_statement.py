@@ -11,6 +11,7 @@ from datetime import datetime
 import beancount_utils as bc_utils
 from views.common import (
     show_summary_metrics,
+    show_colored_summary_metrics,
     show_dataframe_with_chart,
     show_error_with_details,
     show_no_data_message,
@@ -50,8 +51,9 @@ def show_budget_comparison(
     expense_df_detailed = expense_df.copy()
     expense_df_detailed["amount"] = expense_df_detailed["amount"].abs()
 
-    # Add budget information
-    budget_comparison = []
+    # Add budget information - aggregate by budget account to avoid double counting
+    budget_accounts = {}
+
     for _, row in expense_df_detailed.iterrows():
         account = row["account"]
         actual = row["amount"]
@@ -65,7 +67,7 @@ def show_budget_comparison(
             budget_amount = month_budgets[account]["amount"]
             budget_account = account
         else:
-            # Check parent accounts (e.g., Expenses:Food for Expenses:Food:Groceries)
+            # Check parent accounts (e.g., Expenses:Travel for Expenses:Travel:Hotels)
             account_parts = account.split(":")
             for i in range(len(account_parts) - 1, 0, -1):
                 parent_account = ":".join(account_parts[: i + 1])
@@ -74,15 +76,35 @@ def show_budget_comparison(
                     budget_account = parent_account
                     break
 
-        difference = actual - (budget_amount or 0)
+        # Use the budget account as the key for aggregation
+        key = budget_account if budget_account else account
 
+        if key not in budget_accounts:
+            budget_accounts[key] = {
+                "account": clean_account_name(budget_account) if budget_account else clean_account_name(account),
+                "full_account": budget_account if budget_account else account,
+                "category": get_account_category(account),
+                "actual": 0,
+                "budget": budget_amount or 0,
+                "budget_account": budget_account,
+                "child_accounts": []
+            }
+
+        # Accumulate actual spending for this budget
+        budget_accounts[key]["actual"] += actual
+        budget_accounts[key]["child_accounts"].append(account)
+
+    # Convert to list and calculate differences
+    budget_comparison = []
+    for key, data in budget_accounts.items():
+        difference = data["actual"] - data["budget"]
         budget_comparison.append({
-            "account": clean_account_name(account),
-            "full_account": account,  # Keep original for matching
-            "category": get_account_category(account),
-            "actual": actual,
-            "budget": budget_amount or 0,
-            "budget_account": budget_account,
+            "account": data["account"],
+            "full_account": data["full_account"],
+            "category": data["category"],
+            "actual": data["actual"],
+            "budget": data["budget"],
+            "budget_account": data["budget_account"],
             "difference": difference,
         })
 
@@ -97,19 +119,22 @@ def show_budget_comparison(
         total_actual = budget_df["actual"].sum()
         total_difference = total_actual - total_budget
 
-        show_summary_metrics([
+        # Determine colors for budget comparison
+        over_budget_color = "red" if total_difference > 0 else "green" if total_difference < 0 else None
+
+        show_colored_summary_metrics([
             {
-                "label": "Total Budgeted",
+                "label": "Total Budgeted Expenses",
                 "value": f"${total_budget:,.2f}"
             },
             {
-                "label": "Total Actual",
+                "label": "Total Actual Expenses",
                 "value": f"${total_actual:,.2f}"
             },
             {
                 "label": "Over/Under Budget",
-                "value": f"${total_difference:,.2f}",
-                "delta": f"${total_difference:+,.2f}" if total_difference != 0 else None
+                "value": f"${abs(total_difference):,.2f}",
+                "color": over_budget_color
             }
         ])
 
@@ -136,9 +161,9 @@ def show_budget_comparison(
                 # Extract numeric value from formatted string like "$123.45" or "-$123.45"
                 numeric_val = float(val.replace("$", "").replace(",", ""))
                 if numeric_val > 0:
-                    return "color: red; font-weight: bold"  # Over budget
+                    return "color: red; font-weight: bold"  # Over budget (bad)
                 elif numeric_val < 0:
-                    return "color: green; font-weight: bold"  # Under budget
+                    return "color: green; font-weight: bold"  # Under budget (good)
                 else:
                     return ""  # Exactly on budget
             except:
@@ -345,7 +370,10 @@ def show_income_statement(entries: List, options_map: Dict[str, Any]) -> None:
         total_expenses = expense_df["amount"].sum() if len(expense_df) > 0 else 0
         net_income = abs(total_income) - abs(total_expenses)
 
-        show_summary_metrics([
+        # Determine color for net income (green if positive, red if negative)
+        net_income_color = "green" if net_income > 0 else "red" if net_income < 0 else None
+
+        show_colored_summary_metrics([
             {
                 "label": "Total Income",
                 "value": f"${abs(total_income):,.2f}"
@@ -356,7 +384,8 @@ def show_income_statement(entries: List, options_map: Dict[str, Any]) -> None:
             },
             {
                 "label": "Net Income",
-                "value": f"${net_income:,.2f}"
+                "value": f"${abs(net_income):,.2f}",
+                "color": net_income_color
             }
         ])
 

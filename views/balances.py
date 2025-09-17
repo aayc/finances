@@ -356,7 +356,7 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
             )
 
         # Get and display balance history
-        with st.spinner("Loading balance history..."):
+        with st.spinner("Crunching the numbers, just for you"):
             history_df = get_balance_history(entries, st.session_state.selected_account)
 
         if len(history_df) > 0:

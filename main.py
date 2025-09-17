@@ -6,6 +6,7 @@ from beancount import loader
 from beancount.core import data
 
 import beancount_utils as bc_utils
+from views.financial_health import show_financial_health
 from views.income_statement import show_income_statement
 from views.balances import show_balances
 from views.journal import show_journal
@@ -34,14 +35,16 @@ BEANCOUNT_FILE: str = "/Users/aaronchan/Projects/Aaron Chan Vault/Ledgers/2025.b
 
 # UI Constants
 PAGE_TITLES = {
+    "Financial Health": "🏥 Financial Health",
     "Income Statement": "📈 Income Statement",
-    "Balances": "⚖️ Account Balances",
+    "Balances": "⚖️ Balance Report",
     "Journal": "📔 Transaction Journal",
     "Forecast": "🔮 Financial Forecast",
     "Accounts": "🏦 Account Information",
 }
 
 PAGE_DESCRIPTIONS = {
+    "Financial Health": "Comprehensive dashboard of your financial well-being and health metrics.",
     "Income Statement": "View your monthly income and expenses with interactive charts.",
     "Balances": "Check current balances across all your accounts.",
     "Journal": "Browse and filter your transaction history.",
@@ -92,12 +95,12 @@ def main() -> None:
 
     # Get current page from URL query parameter
     query_params = st.query_params
-    current_page_from_url = query_params.get("page", "Income Statement")
+    current_page_from_url = query_params.get("page", "Financial Health")
 
     # Ensure the page from URL is valid
     pages = list(PAGE_TITLES.keys())
     if current_page_from_url not in pages:
-        current_page_from_url = "Income Statement"
+        current_page_from_url = "Financial Health"
 
     # Find the index for the current page
     try:
@@ -128,7 +131,9 @@ def main() -> None:
         st.stop()  # Stop execution instead of return for better UX
 
     # Route to different pages
-    if page == "Income Statement":
+    if page == "Financial Health":
+        show_financial_health(entries, options_map)
+    elif page == "Income Statement":
         show_income_statement(entries, options_map)
     elif page == "Balances":
         show_balances(entries, options_map)

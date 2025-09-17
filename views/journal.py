@@ -53,10 +53,10 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
         search_description = st.text_input("Search Description")
 
     try:
-        # Get transaction data
+        # Get grouped transaction data (one row per transaction entry)
         account_filter_param = None if account_filter == "All" else account_filter
 
-        transactions_df = bc_utils.get_transactions(
+        transactions_df = bc_utils.get_grouped_transactions(
             entries,
             options_map,
             account_filter=account_filter_param,
@@ -90,75 +90,37 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
         display_df = transactions_df.copy()
         display_df = display_df.sort_values("date", ascending=False)
 
-        # Create a clean account display
-        display_df["account_clean"] = display_df["account"].apply(clean_account_name)
+        # Clean up account names for display
+        display_df["accounts_clean"] = display_df["accounts"].apply(
+            lambda x: " → ".join([clean_account_name(acc.strip()) for acc in x.split(" → ")]) if " → " in x else clean_account_name(x.replace(" (+more)", "").replace(" (+", " (+"))
+        )
 
         # Format dates
         display_df["date"] = pd.to_datetime(display_df["date"]).dt.strftime("%Y-%m-%d")
 
+        # Add payee if available
+        columns_to_show = ["date", "accounts_clean", "description", "amount", "currency"]
+        column_config = {
+            "date": st.column_config.TextColumn("Date", width="small"),
+            "accounts_clean": st.column_config.TextColumn("Accounts", width="large"),
+            "description": st.column_config.TextColumn("Description", width="large"),
+            "amount": st.column_config.NumberColumn("Amount", format="$%.2f", width="medium"),
+            "currency": st.column_config.TextColumn("Curr", width="small"),
+        }
+
+        # Add payee column if any transactions have payee info
+        if display_df["payee"].notna().any() and display_df["payee"].str.strip().str.len().sum() > 0:
+            columns_to_show.insert(-2, "payee")  # Insert before amount and currency
+            column_config["payee"] = st.column_config.TextColumn("Payee", width="medium")
+
         st.dataframe(
-            display_df[["date", "account_clean", "description", "amount", "currency"]],
-            column_config={
-                "date": st.column_config.TextColumn("Date", width="small"),
-                "account_clean": st.column_config.TextColumn("Account", width="medium"),
-                "description": st.column_config.TextColumn("Description", width="large"),
-                "amount": st.column_config.NumberColumn("Amount", format="$%.2f", width="small"),
-                "currency": st.column_config.TextColumn("Currency", width="small"),
-            },
+            display_df[columns_to_show],
+            column_config=column_config,
             hide_index=True,
             use_container_width=True,
             height=400,
         )
 
-        # Transaction trends
-        if len(transactions_df) > 1:
-            st.subheader("Transaction Trends")
-
-            # Daily transaction amounts
-            daily_df = transactions_df.copy()
-            daily_df["date"] = pd.to_datetime(daily_df["date"])
-            daily_summary = daily_df.groupby(daily_df["date"].dt.date)["amount"].sum().reset_index()
-
-            if len(daily_summary) > 1:
-                fig_daily = create_trend_chart(
-                    daily_summary,
-                    "date",
-                    "amount",
-                    "Daily Transaction Flow",
-                    "blue",
-                    "Date",
-                    "Net Amount ($)"
-                )
-                st.plotly_chart(fig_daily, use_container_width=True)
-
-        # Account breakdown (if showing all accounts)
-        if account_filter == "All":
-            st.subheader("Transactions by Account")
-
-            account_summary = (
-                transactions_df.groupby("account")
-                .agg({"amount": ["count", "sum"], "date": ["min", "max"]})
-                .round(2)
-            )
-
-            account_summary.columns = [
-                "Transaction Count",
-                "Total Amount",
-                "First Transaction",
-                "Last Transaction",
-            ]
-            account_summary = account_summary.sort_values("Total Amount", key=abs, ascending=False)
-
-            st.dataframe(
-                account_summary,
-                column_config={
-                    "Transaction Count": st.column_config.NumberColumn("Count"),
-                    "Total Amount": st.column_config.NumberColumn("Total ($)", format="$%.2f"),
-                    "First Transaction": st.column_config.TextColumn("First"),
-                    "Last Transaction": st.column_config.TextColumn("Last"),
-                },
-                use_container_width=True,
-            )
 
     except Exception as e:
         show_error_with_details("Error loading journal data", e)

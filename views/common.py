@@ -20,6 +20,35 @@ def show_summary_metrics(metrics: List[Dict[str, Any]]) -> None:
             st.metric(metric["label"], metric["value"], delta=metric.get("delta"))
 
 
+def show_colored_summary_metrics(metrics: List[Dict[str, Any]]) -> None:
+    """Display summary metrics in columns with colored values.
+
+    Args:
+        metrics: List of dicts with 'label', 'value', and optional 'color' keys
+                'color' can be 'green', 'red', or None for default
+    """
+    cols = st.columns(len(metrics))
+    for i, metric in enumerate(metrics):
+        with cols[i]:
+            color = metric.get("color")
+            if color == "green":
+                st.markdown(f"""
+                <div>
+                    <div style='font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem;'>{metric['label']}</div>
+                    <div style='color: #28a745; font-size: 2rem; font-weight: 600; margin: 0; line-height: 1.2;'>{metric['value']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            elif color == "red":
+                st.markdown(f"""
+                <div>
+                    <div style='font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem;'>{metric['label']}</div>
+                    <div style='color: #dc3545; font-size: 2rem; font-weight: 600; margin: 0; line-height: 1.2;'>{metric['value']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.metric(metric["label"], metric["value"])
+
+
 def show_dataframe_with_chart(
     df: pd.DataFrame,
     value_col: str,
