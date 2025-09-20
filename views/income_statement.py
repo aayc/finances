@@ -26,7 +26,9 @@ def show_budget_comparison(
     budget_data: Dict[str, Any],
     selected_year: int,
     selected_month: str,
-    month_num: int
+    month_num: int,
+    net_income: float = 0,
+    total_income: float = 0
 ) -> None:
     """Display budget vs actual comparison.
 
@@ -36,6 +38,8 @@ def show_budget_comparison(
         selected_year: Selected year
         selected_month: Selected month name
         month_num: Selected month number
+        net_income: Net income for the period
+        total_income: Total income for the period
     """
     if month_num is None:
         return
@@ -119,8 +123,9 @@ def show_budget_comparison(
         total_actual = budget_df["actual"].sum()
         total_difference = total_actual - total_budget
 
-        # Determine colors for budget comparison
+        # Determine colors for budget comparison and net income
         over_budget_color = "red" if total_difference > 0 else "green" if total_difference < 0 else None
+        net_income_color = "green" if net_income > 0 else "red" if net_income < 0 else None
 
         show_colored_summary_metrics([
             {
@@ -135,6 +140,15 @@ def show_budget_comparison(
                 "label": "Over/Under Budget",
                 "value": f"${abs(total_difference):,.2f}",
                 "color": over_budget_color
+            },
+            {
+                "label": "Total Income",
+                "value": f"${abs(total_income):,.2f}"
+            },
+            {
+                "label": "Net Income",
+                "value": f"${abs(net_income):,.2f}",
+                "color": net_income_color
             }
         ])
 
@@ -207,108 +221,6 @@ def show_budget_comparison(
             st.plotly_chart(fig_budget, use_container_width=True)
 
 
-def show_transactions_table(
-    entries: List,
-    options_map: Dict[str, Any],
-    selected_year: int,
-    month_num: int,
-    income_df: pd.DataFrame,
-    expense_df: pd.DataFrame
-) -> None:
-    """Display a filterable transactions table for the selected month.
-
-    Args:
-        entries: List of beancount entries
-        options_map: Beancount options configuration
-        selected_year: Selected year
-        month_num: Selected month number
-        income_df: Income DataFrame
-        expense_df: Expense DataFrame
-    """
-    # Get all transactions for the month
-    start_date = datetime(selected_year, month_num, 1).date()
-    if month_num == 12:
-        end_date = datetime(selected_year + 1, 1, 1).date()
-    else:
-        end_date = datetime(selected_year, month_num + 1, 1).date()
-
-    all_transactions = bc_utils.get_transactions(
-        entries, options_map,
-        start_date=start_date,
-        end_date=end_date
-    )
-
-    if len(all_transactions) == 0:
-        st.info("No transactions found for this month.")
-        return
-
-    # Get unique accounts for filter
-    all_accounts = ["All"] + sorted(all_transactions["account"].unique())
-
-    # Filters
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        account_filter = st.selectbox(
-            "Filter by Account",
-            all_accounts,
-            key="trans_account_filter"
-        )
-
-    with col2:
-        sort_options = ["Date (Newest)", "Date (Oldest)", "Amount (High to Low)", "Amount (Low to High)"]
-        sort_selection = st.selectbox("Sort by", sort_options, key="trans_sort")
-
-    with col3:
-        search_term = st.text_input("Search descriptions", key="trans_search")
-
-    # Apply filters
-    filtered_df = all_transactions.copy()
-
-    if account_filter != "All":
-        filtered_df = filtered_df[filtered_df["account"] == account_filter]
-
-    if search_term:
-        filtered_df = filtered_df[
-            filtered_df["description"].str.contains(search_term, case=False, na=False)
-        ]
-
-    # Apply sorting
-    if sort_selection == "Date (Newest)":
-        filtered_df = filtered_df.sort_values("date", ascending=False)
-    elif sort_selection == "Date (Oldest)":
-        filtered_df = filtered_df.sort_values("date", ascending=True)
-    elif sort_selection == "Amount (High to Low)":
-        filtered_df = filtered_df.sort_values("amount", ascending=False, key=abs)
-    elif sort_selection == "Amount (Low to High)":
-        filtered_df = filtered_df.sort_values("amount", ascending=True, key=abs)
-
-    if len(filtered_df) == 0:
-        st.warning("No transactions match your filters.")
-        return
-
-    # Display results count
-    st.write(f"Showing {len(filtered_df)} of {len(all_transactions)} transactions")
-
-    # Format for display
-    display_df = filtered_df.copy()
-    display_df["account_clean"] = display_df["account"].apply(clean_account_name)
-    display_df["date"] = pd.to_datetime(display_df["date"]).dt.strftime("%Y-%m-%d")
-
-    st.dataframe(
-        display_df[["date", "account_clean", "description", "amount", "currency"]],
-        column_config={
-            "date": st.column_config.TextColumn("Date", width="small"),
-            "account_clean": st.column_config.TextColumn("Account", width="medium"),
-            "description": st.column_config.TextColumn("Description", width="large"),
-            "amount": st.column_config.NumberColumn("Amount", format="$%.2f", width="small"),
-            "currency": st.column_config.TextColumn("Currency", width="small"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        height=400,
-    )
-
 
 def show_income_statement(entries: List, options_map: Dict[str, Any]) -> None:
     """Display the income statement view with charts and analysis.
@@ -365,37 +277,28 @@ def show_income_statement(entries: List, options_map: Dict[str, Any]) -> None:
             show_no_data_message(f"{selected_month} {selected_year}")
             return
 
-        # Summary metrics
+        # Calculate totals for use in budget comparison
         total_income = income_df["amount"].sum() if len(income_df) > 0 else 0
         total_expenses = expense_df["amount"].sum() if len(expense_df) > 0 else 0
         net_income = abs(total_income) - abs(total_expenses)
 
-        # Determine color for net income (green if positive, red if negative)
-        net_income_color = "green" if net_income > 0 else "red" if net_income < 0 else None
-
-        show_colored_summary_metrics([
-            {
-                "label": "Total Income",
-                "value": f"${abs(total_income):,.2f}"
-            },
-            {
-                "label": "Total Expenses",
-                "value": f"${abs(total_expenses):,.2f}"
-            },
-            {
-                "label": "Net Income",
-                "value": f"${abs(net_income):,.2f}",
-                "color": net_income_color
-            }
-        ])
-
         # Budget comparison (only for monthly view)
         if len(expense_df) > 0 and month_num is not None:
-            st.subheader("📊 Monthly Expenses: Budget vs. Actual")
+            # Create header with button aligned to the right
+            header_col1, header_col2 = st.columns([4, 1])
+            with header_col1:
+                st.subheader("📊 Monthly Expenses: Budget vs. Actual")
+            with header_col2:
+                if st.button("📔 See transactions", key="see_expense_transactions", help="View expense transactions for this month"):
+                    # Navigate to Journal page with month and expense filters
+                    st.query_params.page = "Journal"
+                    st.query_params.month = f"{selected_year}-{month_num:02d}"
+                    st.query_params.account_type = "Expenses"
+                    st.rerun()
 
             # Get budget data
             budget_data = bc_utils.get_budget_data(entries, options_map)
-            show_budget_comparison(expense_df, budget_data, selected_year, selected_month, month_num)
+            show_budget_comparison(expense_df, budget_data, selected_year, selected_month, month_num, net_income, total_income)
 
         # Income breakdown
         if len(income_df) > 0:
@@ -462,10 +365,6 @@ def show_income_statement(entries: List, options_map: Dict[str, Any]) -> None:
 
                 st.plotly_chart(fig_trends, use_container_width=True)
 
-        # Transactions table (for specific month only)
-        if month_num is not None:
-            st.subheader("📋 Transactions")
-            show_transactions_table(entries, options_map, selected_year, month_num, income_df, expense_df)
 
     except Exception as e:
         show_error_with_details("Error loading income statement data", e)

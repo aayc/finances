@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 from beancount.core import getters
 
 import beancount_utils as bc_utils
@@ -29,19 +29,80 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
     # Get all accounts for the filter
     all_accounts = sorted(getters.get_accounts(entries))
 
+    # Add parent accounts (like "Assets", "Expenses", "Income", "Liabilities")
+    parent_accounts = ["Assets", "Expenses", "Income", "Liabilities"]
+
+    # Combine parent accounts with specific accounts
+    account_options = ["All"] + parent_accounts + all_accounts
+
+    # Check if parameters were passed via query parameters
+    query_params = st.query_params
+    preselected_account = query_params.get("account", None)
+    preselected_month = query_params.get("month", None)  # Format: YYYY-MM
+    preselected_account_type = query_params.get("account_type", None)  # "Expenses", "Income", etc.
+
+    # Determine the initial account filter index
+    initial_index = 0
+
+    if preselected_account and preselected_account in account_options:
+        try:
+            initial_index = account_options.index(preselected_account)
+        except ValueError:
+            initial_index = 0
+    elif preselected_account_type and preselected_account_type in account_options:
+        # If account_type is specified (e.g., "Expenses"), select it directly
+        try:
+            initial_index = account_options.index(preselected_account_type)
+        except ValueError:
+            initial_index = 0
+
     # Filters
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        account_filter = st.selectbox("Filter by Account", ["All"] + all_accounts, index=0)
+        account_filter = st.selectbox("Filter by Account", account_options, index=initial_index)
+
+        # Clear query parameters after they've been used to avoid persistence
+        params_to_clear = []
+        if preselected_account and "account" in st.query_params:
+            params_to_clear.append("account")
+        if preselected_month and "month" in st.query_params:
+            params_to_clear.append("month")
+        if preselected_account_type and "account_type" in st.query_params:
+            params_to_clear.append("account_type")
+
+        for param in params_to_clear:
+            del st.query_params[param]
 
     with col2:
-        start_date = st.date_input(
-            "Start Date", value=datetime.now().date().replace(month=1, day=1)
-        )
+        # Set default start date based on preselected month or current year start
+        if preselected_month:
+            try:
+                year, month = map(int, preselected_month.split("-"))
+                default_start = datetime(year, month, 1).date()
+            except ValueError:
+                default_start = datetime.now().date().replace(month=1, day=1)
+        else:
+            default_start = datetime.now().date().replace(month=1, day=1)
+
+        start_date = st.date_input("Start Date", value=default_start)
 
     with col3:
-        end_date = st.date_input("End Date", value=datetime.now().date())
+        # Set default end date based on preselected month or current date
+        if preselected_month:
+            try:
+                year, month = map(int, preselected_month.split("-"))
+                # Get last day of the month
+                if month == 12:
+                    default_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    default_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+            except ValueError:
+                default_end = datetime.now().date()
+        else:
+            default_end = datetime.now().date()
+
+        end_date = st.date_input("End Date", value=default_end)
 
     # Additional filters
     col4, col5 = st.columns(2)
