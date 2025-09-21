@@ -463,12 +463,17 @@ def get_budget_data(entries: List[data.Directive], options_map: Dict[str, Any]) 
                         if year_month not in budgets:
                             budgets[year_month] = {}
 
-                        budgets[year_month][account] = {
-                            "amount": amount,
-                            "currency": currency,
-                            "date": entry.date,
-                            "frequency": frequency
-                        }
+                        if account in budgets[year_month]:
+                            # Combine with existing budget (e.g., if both monthly and yearly exist)
+                            budgets[year_month][account]["amount"] += amount
+                            budgets[year_month][account]["frequency"] += f",{frequency}"
+                        else:
+                            budgets[year_month][account] = {
+                                "amount": amount,
+                                "currency": currency,
+                                "date": entry.date,
+                                "frequency": frequency
+                            }
 
                 elif frequency == "yearly":
                     # Break down yearly budgets into monthly amounts for all months
@@ -481,12 +486,21 @@ def get_budget_data(entries: List[data.Directive], options_map: Dict[str, Any]) 
                         if year_month not in budgets:
                             budgets[year_month] = {}
 
-                        budgets[year_month][account] = {
-                            "amount": monthly_amount,
-                            "currency": currency,
-                            "date": entry.date,
-                            "frequency": "yearly_monthly",  # Mark as originally yearly
-                            "annual_amount": amount  # Store original annual amount
-                        }
+                        if account in budgets[year_month]:
+                            # Combine with existing budget (e.g., if both monthly and yearly exist)
+                            budgets[year_month][account]["amount"] += monthly_amount
+                            budgets[year_month][account]["frequency"] += ",yearly_monthly"
+                            if "annual_amount" in budgets[year_month][account]:
+                                budgets[year_month][account]["annual_amount"] += amount
+                            else:
+                                budgets[year_month][account]["annual_amount"] = amount
+                        else:
+                            budgets[year_month][account] = {
+                                "amount": monthly_amount,
+                                "currency": currency,
+                                "date": entry.date,
+                                "frequency": "yearly_monthly",  # Mark as originally yearly
+                                "annual_amount": amount  # Store original annual amount
+                            }
 
     return budgets

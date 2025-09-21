@@ -80,6 +80,17 @@ def show_budget_comparison(
                     budget_account = parent_account
                     break
 
+            # If no parent match, check for budget accounts with same leaf name
+            # e.g., Expenses:Joint:Housing:Rent should match Expenses:Joint:Rent
+            if budget_amount is None and len(account_parts) > 2:
+                leaf_name = account_parts[-1]  # "Rent"
+                base_path = ":".join(account_parts[:-2])  # "Expenses:Joint"
+                potential_budget_account = f"{base_path}:{leaf_name}"  # "Expenses:Joint:Rent"
+
+                if potential_budget_account in month_budgets:
+                    budget_amount = month_budgets[potential_budget_account]["amount"]
+                    budget_account = potential_budget_account
+
         # Use the budget account as the key for aggregation
         key = budget_account if budget_account else account
 
