@@ -1,6 +1,6 @@
 # Finances 💰
 
-A personal finance dashboard built with Streamlit that integrates with Beancount accounting files.
+A personal finance dashboard built with Streamlit that loads Beancount accounting files directly from Azure File Share.
 
 ## Features
 
@@ -18,11 +18,18 @@ A personal finance dashboard built with Streamlit that integrates with Beancount
    ```
    This will create a virtual environment and install all dependencies.
 
-2. Configure your Beancount file path:
+2. Configure your Azure File Share settings:
    ```bash
    cp .env.example .env
-   # Edit .env and set BEANCOUNT_FILE to point to your ledger file
+   # Edit .env and configure your Azure settings:
+
+   BEANCOUNT_YEAR=2025
+   AZURE_STORAGE_CONNECTION_STRING=your_connection_string
+   AZURE_FILE_SHARE_NAME=your_share_name
+   AZURE_FILE_FOLDER_PATH=path/to/ledgers
    ```
+
+   The app will load `{BEANCOUNT_YEAR}.beancount` from your Azure File Share.
 
 3. Customize account information in the `show_accounts()` function to match your specific accounts.
 

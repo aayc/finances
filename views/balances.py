@@ -1,17 +1,16 @@
 """Account Balances view for Finances."""
 
-from typing import Dict, List, Any, Tuple
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from collections import defaultdict
+from typing import Any, Dict, List
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
 
 import beancount_utils as bc_utils
 from views.common import (
-    show_summary_metrics,
     show_error_with_details,
+    show_summary_metrics,
 )
 
 
@@ -46,7 +45,7 @@ def build_account_tree(balances_df: pd.DataFrame) -> Dict:
                     "_balance": 0.0,
                     "_full_path": full_path,
                     "_children": {},
-                    "_is_leaf": i == len(parts) - 1
+                    "_is_leaf": i == len(parts) - 1,
                 }
 
             current[part]["_balance"] += amount
@@ -65,13 +64,15 @@ def format_currency_for_chart(value: float) -> str:
         Formatted string like "$1.23K" or "$456.78"
     """
     if abs(value) >= 1000:
-        return f"${value/1000:.2f}K"
+        return f"${value / 1000:.2f}K"
     else:
         return f"${value:.2f}"
 
 
 @st.cache_data
-def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.DataFrame]:
+def _precompute_all_balances(
+    _entries: List, months: int = 12
+) -> Dict[str, pd.DataFrame]:
     """Precompute balance histories for all major account types to improve performance.
 
     This function computes balance histories for all main account patterns in one pass,
@@ -85,6 +86,7 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
         Dictionary mapping account patterns to their balance history DataFrames
     """
     from collections import defaultdict
+
     from beancount.core import data
 
     end_date = datetime.now().date()
@@ -92,7 +94,7 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
     # Generate list of month dates we want to calculate
     month_dates = []
     for i in range(months):
-        month_date = end_date.replace(day=1) - timedelta(days=32*i)
+        month_date = end_date.replace(day=1) - timedelta(days=32 * i)
         month_date = month_date.replace(day=1)  # First day of month
         month_dates.append(month_date)
 
@@ -114,10 +116,10 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
     for transaction in transactions:
         for posting in transaction.postings:
             if posting.account:
-                account_parts = posting.account.split(':')
+                account_parts = posting.account.split(":")
                 # Add patterns like "Assets:US", "Assets:US:Bank", etc.
                 for i in range(2, len(account_parts) + 1):
-                    specific_accounts.add(':'.join(account_parts[:i]))
+                    specific_accounts.add(":".join(account_parts[:i]))
 
     all_patterns = patterns + list(specific_accounts)
 
@@ -128,7 +130,10 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
 
         for month_date in month_dates:
             # Process all transactions up to this month date
-            while transaction_idx < len(transactions) and transactions[transaction_idx].date <= month_date:
+            while (
+                transaction_idx < len(transactions)
+                and transactions[transaction_idx].date <= month_date
+            ):
                 transaction = transactions[transaction_idx]
 
                 for posting in transaction.postings:
@@ -144,22 +149,28 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
                         elif pattern == "Expenses":
                             account_matches = posting.account.startswith("Expenses:")
                         else:
-                            account_matches = (posting.account.startswith(pattern + ":") or
-                                             posting.account == pattern)
+                            account_matches = (
+                                posting.account.startswith(pattern + ":")
+                                or posting.account == pattern
+                            )
 
                         if account_matches:
-                            account_balances[posting.account] += float(posting.units.number)
+                            account_balances[posting.account] += float(
+                                posting.units.number
+                            )
 
                 transaction_idx += 1
 
             # Calculate total balance for all matching accounts
             total_balance = sum(account_balances.values())
 
-            history.append({
-                "date": month_date,
-                "balance": total_balance,
-                "month_name": month_date.strftime("%Y-%m")
-            })
+            history.append(
+                {
+                    "date": month_date,
+                    "balance": total_balance,
+                    "month_name": month_date.strftime("%Y-%m"),
+                }
+            )
 
         # Sort by date (reverse chronological for display)
         history_df = pd.DataFrame(history)
@@ -172,7 +183,9 @@ def _precompute_all_balances(_entries: List, months: int = 12) -> Dict[str, pd.D
 
 
 @st.cache_data
-def get_monthly_transaction_totals(_entries: List, account_pattern: str, months: int = 12) -> pd.DataFrame:
+def get_monthly_transaction_totals(
+    _entries: List, account_pattern: str, months: int = 12
+) -> pd.DataFrame:
     """Get monthly transaction totals for an account pattern (not cumulative).
 
     Each month shows only the sum of transactions that occurred in that specific month.
@@ -185,16 +198,16 @@ def get_monthly_transaction_totals(_entries: List, account_pattern: str, months:
     Returns:
         DataFrame with date and monthly_total columns
     """
-    from collections import defaultdict
-    from beancount.core import data
     from datetime import datetime, timedelta
+
+    from beancount.core import data
 
     end_date = datetime.now().date()
 
     # Generate list of month dates we want to calculate
     month_dates = []
     for i in range(months):
-        month_date = end_date.replace(day=1) - timedelta(days=32*i)
+        month_date = end_date.replace(day=1) - timedelta(days=32 * i)
         month_date = month_date.replace(day=1)  # First day of month
         month_dates.append(month_date)
 
@@ -216,7 +229,9 @@ def get_monthly_transaction_totals(_entries: List, account_pattern: str, months:
         elif account_pattern == "Expenses":
             return account.startswith("Expenses:")
         else:
-            return account.startswith(account_pattern + ":") or account == account_pattern
+            return (
+                account.startswith(account_pattern + ":") or account == account_pattern
+            )
 
     history = []
 
@@ -238,14 +253,20 @@ def get_monthly_transaction_totals(_entries: List, account_pattern: str, months:
             # Check if transaction is in this month
             if month_date <= transaction.date < next_month_date:
                 for posting in transaction.postings:
-                    if posting.account and posting.units and account_matches_pattern(posting.account):
+                    if (
+                        posting.account
+                        and posting.units
+                        and account_matches_pattern(posting.account)
+                    ):
                         monthly_total += float(posting.units.number)
 
-        history.append({
-            "date": month_date,
-            "monthly_total": monthly_total,
-            "month_name": month_date.strftime("%Y-%m")
-        })
+        history.append(
+            {
+                "date": month_date,
+                "monthly_total": monthly_total,
+                "month_name": month_date.strftime("%Y-%m"),
+            }
+        )
 
     # Sort by date (reverse chronological for display)
     history_df = pd.DataFrame(history)
@@ -256,7 +277,9 @@ def get_monthly_transaction_totals(_entries: List, account_pattern: str, months:
 
 
 @st.cache_data
-def get_balance_history(_entries: List, account_pattern: str, months: int = 12) -> pd.DataFrame:
+def get_balance_history(
+    _entries: List, account_pattern: str, months: int = 12
+) -> pd.DataFrame:
     """Get balance history for an account or account pattern over time.
 
     Optimized version that uses precomputed balance data when possible.
@@ -280,6 +303,7 @@ def get_balance_history(_entries: List, account_pattern: str, months: int = 12) 
 
     # Fallback: compute individual balance history
     from collections import defaultdict
+
     from beancount.core import data
 
     end_date = datetime.now().date()
@@ -287,7 +311,7 @@ def get_balance_history(_entries: List, account_pattern: str, months: int = 12) 
     # Generate list of month dates we want to calculate
     month_dates = []
     for i in range(months):
-        month_date = end_date.replace(day=1) - timedelta(days=32*i)
+        month_date = end_date.replace(day=1) - timedelta(days=32 * i)
         month_date = month_date.replace(day=1)  # First day of month
         month_dates.append(month_date)
 
@@ -313,18 +337,27 @@ def get_balance_history(_entries: List, account_pattern: str, months: int = 12) 
         elif account_pattern == "Expenses":
             return account.startswith("Expenses:")
         else:
-            return account.startswith(account_pattern + ":") or account == account_pattern
+            return (
+                account.startswith(account_pattern + ":") or account == account_pattern
+            )
 
     # Process transactions chronologically
     transaction_idx = 0
 
     for month_date in month_dates:
         # Process all transactions up to this month date
-        while transaction_idx < len(transactions) and transactions[transaction_idx].date <= month_date:
+        while (
+            transaction_idx < len(transactions)
+            and transactions[transaction_idx].date <= month_date
+        ):
             transaction = transactions[transaction_idx]
 
             for posting in transaction.postings:
-                if posting.account and posting.units and account_matches_pattern(posting.account):
+                if (
+                    posting.account
+                    and posting.units
+                    and account_matches_pattern(posting.account)
+                ):
                     # Update running balance for this account
                     account_balances[posting.account] += float(posting.units.number)
 
@@ -333,11 +366,13 @@ def get_balance_history(_entries: List, account_pattern: str, months: int = 12) 
         # Calculate total balance for all matching accounts
         total_balance = sum(account_balances.values())
 
-        history.append({
-            "date": month_date,
-            "balance": total_balance,
-            "month_name": month_date.strftime("%Y-%m")
-        })
+        history.append(
+            {
+                "date": month_date,
+                "balance": total_balance,
+                "month_name": month_date.strftime("%Y-%m"),
+            }
+        )
 
     # Sort by date (reverse chronological for display)
     history_df = pd.DataFrame(history)
@@ -376,9 +411,13 @@ def render_account_tree(tree: Dict, level: int = 0, prefix: str = "") -> str:
 
         # Create expandable section for parent nodes
         if has_children:
-            with st.expander(f"{indent}📁 {account_name}: ${balance:,.2f}", expanded=(level == 0)):
+            with st.expander(
+                f"{indent}📁 {account_name}: ${balance:,.2f}", expanded=(level == 0)
+            ):
                 # Add button to select this node for chart
-                if st.button(f"📈 Show chart for {account_name}", key=f"chart_{full_path}"):
+                if st.button(
+                    f"📈 Show chart for {account_name}", key=f"chart_{full_path}"
+                ):
                     selected_account = full_path
 
                 # Recursively render children
@@ -391,7 +430,11 @@ def render_account_tree(tree: Dict, level: int = 0, prefix: str = "") -> str:
             with col1:
                 st.write(f"{indent}📄 {account_name}: ${balance:,.2f}")
             with col2:
-                if st.button("📈", key=f"chart_{full_path}", help=f"Show chart for {account_name}"):
+                if st.button(
+                    "📈",
+                    key=f"chart_{full_path}",
+                    help=f"Show chart for {account_name}",
+                ):
                     selected_account = full_path
 
     return selected_account
@@ -459,12 +502,13 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
                 # If current account is not in the list, add it
                 all_accounts.insert(0, current_account)
 
-            account_index = all_accounts.index(current_account) if current_account in all_accounts else 0
+            account_index = (
+                all_accounts.index(current_account)
+                if current_account in all_accounts
+                else 0
+            )
             selected_account = st.selectbox(
-                "Account",
-                all_accounts,
-                index=account_index,
-                key="account_selector"
+                "Account", all_accounts, index=account_index, key="account_selector"
             )
 
             # Update session state if account changed
@@ -476,13 +520,17 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
             chart_type = st.selectbox(
                 "Chart Type",
                 ["Cumulative", "Monthly Change", "Monthly Totals"],
-                key="balance_chart_type"
+                key="balance_chart_type",
             )
 
         with col4:
             # Add some spacing and the button
             st.write("")  # Add vertical space to align with other elements
-            if st.button("📔 See transactions", key="see_transactions_btn", help="View transactions for this account"):
+            if st.button(
+                "📔 See transactions",
+                key="see_transactions_btn",
+                help="View transactions for this account",
+            ):
                 # Set query parameters to navigate to Journal page with this account preselected
                 st.query_params.page = "Journal"
                 st.query_params.account = st.session_state.selected_account
@@ -497,32 +545,31 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
 
             if chart_type == "Cumulative":
                 # Show cumulative balance over time
-                fig.add_trace(go.Scatter(
-                    x=history_df["date"],
-                    y=history_df["balance"],
-                    mode='lines+markers',
-                    name=st.session_state.selected_account,
-                    line=dict(color='blue', width=3),
-                    marker=dict(size=8)
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=history_df["date"],
+                        y=history_df["balance"],
+                        mode="lines+markers",
+                        name=st.session_state.selected_account,
+                        line=dict(color="blue", width=3),
+                        marker=dict(size=8),
+                    )
+                )
 
                 fig.update_layout(
                     title=f"{st.session_state.selected_account} - Cumulative Balance",
                     xaxis_title="Date",
                     yaxis_title="Balance ($)",
-                    hovermode='x unified',
+                    hovermode="x unified",
                     height=400,
-                    yaxis=dict(
-                        tickformat='$,.0f',
-                        tickmode='auto'
-                    )
+                    yaxis=dict(tickformat="$,.0f", tickmode="auto"),
                 )
 
                 # Update hover template to show currency format
                 fig.update_traces(
-                    hovertemplate='<b>%{fullData.name}</b><br>' +
-                                  'Date: %{x}<br>' +
-                                  'Balance: $%{y:,.2f}<extra></extra>'
+                    hovertemplate="<b>%{fullData.name}</b><br>"
+                    + "Date: %{x}<br>"
+                    + "Balance: $%{y:,.2f}<extra></extra>"
                 )
 
             elif chart_type == "Monthly Change":
@@ -535,32 +582,34 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
 
                 if len(change_df) > 0:
                     # Create bar chart for monthly changes
-                    colors = ['green' if x >= 0 else 'red' for x in change_df["monthly_change"]]
+                    colors = [
+                        "green" if x >= 0 else "red"
+                        for x in change_df["monthly_change"]
+                    ]
 
-                    fig.add_trace(go.Bar(
-                        x=change_df["date"],
-                        y=change_df["monthly_change"],
-                        name="Monthly Change",
-                        marker_color=colors
-                    ))
+                    fig.add_trace(
+                        go.Bar(
+                            x=change_df["date"],
+                            y=change_df["monthly_change"],
+                            name="Monthly Change",
+                            marker_color=colors,
+                        )
+                    )
 
                     fig.update_layout(
                         title=f"{st.session_state.selected_account} - Monthly Changes",
                         xaxis_title="Date",
                         yaxis_title="Change ($)",
-                        hovermode='x unified',
+                        hovermode="x unified",
                         height=400,
-                        yaxis=dict(
-                            tickformat='$,.0f',
-                            tickmode='auto'
-                        )
+                        yaxis=dict(tickformat="$,.0f", tickmode="auto"),
                     )
 
                     # Update hover template for bar chart
                     fig.update_traces(
-                        hovertemplate='<b>Monthly Change</b><br>' +
-                                      'Date: %{x}<br>' +
-                                      'Change: $%{y:,.2f}<extra></extra>'
+                        hovertemplate="<b>Monthly Change</b><br>"
+                        + "Date: %{x}<br>"
+                        + "Change: $%{y:,.2f}<extra></extra>"
                     )
 
                     # Add zero line for reference
@@ -568,36 +617,37 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
 
             else:  # Monthly Totals
                 # Get monthly transaction totals (non-cumulative)
-                monthly_df = get_monthly_transaction_totals(entries, st.session_state.selected_account)
+                monthly_df = get_monthly_transaction_totals(
+                    entries, st.session_state.selected_account
+                )
 
                 if len(monthly_df) > 0:
                     # Show monthly transaction totals as bar chart
-                    colors = ['lightblue'] * len(monthly_df)
+                    colors = ["lightblue"] * len(monthly_df)
 
-                    fig.add_trace(go.Bar(
-                        x=monthly_df["date"],
-                        y=monthly_df["monthly_total"],
-                        name="Monthly Total",
-                        marker_color=colors
-                    ))
+                    fig.add_trace(
+                        go.Bar(
+                            x=monthly_df["date"],
+                            y=monthly_df["monthly_total"],
+                            name="Monthly Total",
+                            marker_color=colors,
+                        )
+                    )
 
                     fig.update_layout(
                         title=f"{st.session_state.selected_account} - Monthly Transaction Totals",
                         xaxis_title="Date",
                         yaxis_title="Monthly Total ($)",
-                        hovermode='x unified',
+                        hovermode="x unified",
                         height=400,
-                        yaxis=dict(
-                            tickformat='$,.0f',
-                            tickmode='auto'
-                        )
+                        yaxis=dict(tickformat="$,.0f", tickmode="auto"),
                     )
 
                     # Update hover template for bar chart
                     fig.update_traces(
-                        hovertemplate='<b>Monthly Total</b><br>' +
-                                      'Date: %{x}<br>' +
-                                      'Total: $%{y:,.2f}<extra></extra>'
+                        hovertemplate="<b>Monthly Total</b><br>"
+                        + "Date: %{x}<br>"
+                        + "Total: $%{y:,.2f}<extra></extra>"
                     )
                 else:
                     st.info("No monthly transaction data available for this account.")
@@ -621,24 +671,21 @@ def show_balances(entries: List, options_map: Dict[str, Any]) -> None:
         # Show summary metrics at the bottom
         st.subheader("📊 Summary")
 
-        assets = balances_df[balances_df["account"].str.startswith("Assets:")]["amount"].sum()
-        liabilities = balances_df[balances_df["account"].str.startswith("Liabilities:")]["amount"].sum()
+        assets = balances_df[balances_df["account"].str.startswith("Assets:")][
+            "amount"
+        ].sum()
+        liabilities = balances_df[
+            balances_df["account"].str.startswith("Liabilities:")
+        ]["amount"].sum()
         net_worth = assets + liabilities
 
-        show_summary_metrics([
-            {
-                "label": "Total Assets",
-                "value": f"${assets:,.2f}"
-            },
-            {
-                "label": "Total Liabilities",
-                "value": f"${abs(liabilities):,.2f}"
-            },
-            {
-                "label": "Net Worth",
-                "value": f"${net_worth:,.2f}"
-            }
-        ])
+        show_summary_metrics(
+            [
+                {"label": "Total Assets", "value": f"${assets:,.2f}"},
+                {"label": "Total Liabilities", "value": f"${abs(liabilities):,.2f}"},
+                {"label": "Net Worth", "value": f"${net_worth:,.2f}"},
+            ]
+        )
 
     except Exception as e:
         show_error_with_details("Error loading balance data", e)

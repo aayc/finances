@@ -1,5 +1,9 @@
 import os
 import streamlit as st
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 import beancount_utils as bc_utils
 from views.financial_health import show_financial_health
@@ -26,8 +30,8 @@ try:
 except FileNotFoundError:
     pass  # CSS file not found, continue without custom styling
 
-# Configuration
-BEANCOUNT_FILE: str = os.environ.get("BEANCOUNT_FILE", "ledger.beancount")
+# Configuration - Year for Azure beancount file loading
+BEANCOUNT_YEAR: str = os.environ.get("BEANCOUNT_YEAR", "2025")
 
 # UI Constants
 PAGE_TITLES = {
@@ -82,17 +86,12 @@ def main() -> None:
     if page != current_page_from_url:
         st.query_params.page = page
 
-    # Load data with file modification time for cache invalidation
-    try:
-        file_mtime = os.path.getmtime(BEANCOUNT_FILE) if os.path.exists(BEANCOUNT_FILE) else 0
-    except OSError:
-        file_mtime = 0
-
-    entries, errors, options_map = bc_utils.load_beancount_data(BEANCOUNT_FILE, file_mtime)
+    # Load data from Azure File Share
+    entries, errors, options_map = bc_utils.load_beancount_data(BEANCOUNT_YEAR)
 
     if not entries:
         st.error(
-            "No data loaded. Please check the beancount file path and ensure it contains valid transactions."
+            "No data loaded from Azure File Share. Please check your Azure configuration and ensure the beancount file exists."
         )
         st.stop()  # Stop execution instead of return for better UX
 

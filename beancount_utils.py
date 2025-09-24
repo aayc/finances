@@ -1,5 +1,7 @@
 import calendar
 import os
+import tempfile
+import time
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
@@ -12,6 +14,12 @@ from beancount.core import amount as amount_lib
 from beancount.core import data, getters, inventory, realization
 from beancount.core.number import D
 
+try:
+    from azure.storage.fileshare import ShareServiceClient
+    AZURE_AVAILABLE = True
+except ImportError:
+    AZURE_AVAILABLE = False
+
 # Constants
 ACCOUNT_TYPES = {
     "ASSETS": "Assets:",
@@ -23,29 +31,106 @@ ACCOUNT_TYPES = {
 
 DEFAULT_CURRENCY = "USD"
 
+# Azure File Share Configuration
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_FILE_SHARE_NAME = os.getenv("AZURE_FILE_SHARE_NAME")
+AZURE_FILE_FOLDER_PATH = os.getenv("AZURE_FILE_FOLDER_PATH")
+
+# Cache for Azure-loaded files
+_azure_cache = {}
+CACHE_EXPIRATION_SECONDS = 3  # 3 seconds
+
+
+def _load_from_azure(year: str) -> str:
+    """Load beancount file from Azure File Share.
+
+    Args:
+        year: Year string (e.g., "2025")
+
+    Returns:
+        File content as string
+
+    Raises:
+        ValueError: If Azure configuration is missing
+        FileNotFoundError: If file doesn't exist in Azure
+        Exception: For other Azure access errors
+    """
+    if not AZURE_AVAILABLE:
+        raise ValueError("Azure storage libraries not installed. Run: pip install azure-storage-file-share")
+
+    # Check required configuration
+    missing_vars = []
+    if not AZURE_STORAGE_CONNECTION_STRING:
+        missing_vars.append("AZURE_STORAGE_CONNECTION_STRING")
+    if not AZURE_FILE_SHARE_NAME:
+        missing_vars.append("AZURE_FILE_SHARE_NAME")
+    if not AZURE_FILE_FOLDER_PATH:
+        missing_vars.append("AZURE_FILE_FOLDER_PATH")
+
+    if missing_vars:
+        raise ValueError(f"Missing Azure Storage environment variables: {', '.join(missing_vars)}")
+
+    # Check cache first
+    cache_key = f"azure_{year}"
+    if cache_key in _azure_cache:
+        cached_time = _azure_cache[cache_key]["timestamp"]
+        if time.time() - cached_time < CACHE_EXPIRATION_SECONDS:
+            return _azure_cache[cache_key]["content"]
+
+    try:
+        # Construct file path
+        folder_path = AZURE_FILE_FOLDER_PATH.strip("/")
+        file_name = f"{folder_path}/{year}.beancount"
+
+        # Initialize Azure clients
+        file_service_client = ShareServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        share_client = file_service_client.get_share_client(AZURE_FILE_SHARE_NAME)
+        file_client = share_client.get_file_client(file_name)
+
+        # Check if file exists
+        if not file_client.exists():
+            raise FileNotFoundError(f"Beancount file not found: {AZURE_FILE_SHARE_NAME}/{file_name}")
+
+        # Download file content
+        download_stream = file_client.download_file()
+        content = download_stream.readall().decode("utf-8")
+
+        # Cache the content
+        _azure_cache[cache_key] = {"content": content, "timestamp": time.time()}
+
+        return content
+
+    except Exception as e:
+        raise
+
 
 @st.cache_data
-def load_beancount_data(beancount_file_path: str, _file_mtime: float = None) -> Tuple[List[data.Directive], List[Any], Dict[str, Any]]:
-    """Load and parse the beancount file.
+def load_beancount_data(year: str) -> Tuple[List[data.Directive], List[Any], Dict[str, Any]]:
+    """Load and parse the beancount file from Azure File Share.
 
     This is the centralized function for loading beancount data throughout the application.
     It includes caching to avoid reloading the file on every page refresh.
 
     Args:
-        beancount_file_path: Path to the beancount file
+        year: Year string (e.g., "2025")
 
     Returns:
         Tuple of (entries, errors, options_map)
     """
     try:
-        if not os.path.exists(beancount_file_path):
-            st.error(f"Beancount file not found: {beancount_file_path}")
-            st.info(
-                "Please update the beancount file path in your configuration to point to your ledger file."
-            )
-            return [], [], {}
+        # Load content from Azure
+        content = _load_from_azure(year)
 
-        entries, errors, options_map = loader.load_file(beancount_file_path)
+        # Create temporary file to use with beancount loader
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.beancount', delete=False) as temp_file:
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+
+        try:
+            entries, errors, options_map = loader.load_file(temp_file_path)
+        finally:
+            # Clean up temporary file
+            os.unlink(temp_file_path)
 
         if errors:
             st.warning(f"Found {len(errors)} warnings/errors in beancount file:")
@@ -56,13 +141,8 @@ def load_beancount_data(beancount_file_path: str, _file_mtime: float = None) -> 
 
         return entries, errors, options_map
 
-    except FileNotFoundError:
-        st.error(f"Beancount file not found: {beancount_file_path}")
-        st.info("Please update the beancount file path in your configuration to point to your ledger file.")
-        return [], [], {}
-
     except Exception as e:
-        st.error(f"Failed to load beancount file: {str(e)}")
+        st.error(f"Failed to load beancount file from Azure: {str(e)}")
         st.exception(e)
         return [], [], {}
 

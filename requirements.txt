@@ -3,6 +3,8 @@ beancount>=2.3.6
 pandas>=2.1.0
 plotly>=5.17.0
 numpy>=1.24.0
+azure-storage-file-share>=12.17.0
+python-dotenv>=1.0.0
 
 # Development dependencies
 mypy>=1.5.0
