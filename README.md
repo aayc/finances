@@ -18,9 +18,10 @@ A personal finance dashboard built with Streamlit that integrates with Beancount
    ```
    This will create a virtual environment and install all dependencies.
 
-2. Update the Beancount file path in `main.py`:
-   ```python
-   BEANCOUNT_FILE = "/path/to/your/ledger.beancount"
+2. Configure your Beancount file path:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set BEANCOUNT_FILE to point to your ledger file
    ```
 
 3. Customize account information in the `show_accounts()` function to match your specific accounts.

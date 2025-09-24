@@ -154,7 +154,7 @@ def get_account_category(account: str) -> str:
 def clean_account_name(account_name: str) -> str:
     """Remove common prefixes from account names for display.
 
-    Removes prefixes like Expenses, Assets, Joint, Aaron, Mikayla to show
+    Removes prefixes like Expenses, Assets, Income, Liabilities, Equity, Joint to show
     just the meaningful part of the account name.
 
     Args:

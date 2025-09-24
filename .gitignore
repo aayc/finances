@@ -5,6 +5,17 @@ venv/
 .idea/
 .pytest_cache/
 .mypy_cache/
-.pytest_cache/
-.pytest_cache/
 __pycache__/
+
+# Beancount files (financial data)
+*.beancount
+*.bean
+ledger.beancount
+
+# Environment files
+.env
+.env.local
+
+# Secrets and config
+config.json
+secrets.json

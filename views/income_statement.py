@@ -137,28 +137,30 @@ def show_budget_comparison(
         # Determine colors for budget comparison and net income
         over_budget_color = "red" if total_difference > 0 else "green" if total_difference < 0 else None
         net_income_color = "green" if net_income > 0 else "red" if net_income < 0 else None
+        net_income_label = "Net Loss" if net_income < 0 else "Net Income"
+        net_income_value = f"${net_income:,.0f}" if net_income >= 0 else f"-${abs(net_income):,.0f}"
 
         show_colored_summary_metrics([
             {
                 "label": "Total Budgeted Expenses",
-                "value": f"${total_budget:,.2f}"
+                "value": f"${total_budget:,.0f}"
             },
             {
                 "label": "Total Actual Expenses",
-                "value": f"${total_actual:,.2f}"
+                "value": f"${total_actual:,.0f}"
             },
             {
                 "label": "Over/Under Budget",
-                "value": f"${abs(total_difference):,.2f}",
+                "value": f"${abs(total_difference):,.0f}",
                 "color": over_budget_color
             },
             {
                 "label": "Total Income",
-                "value": f"${abs(total_income):,.2f}"
+                "value": f"${abs(total_income):,.0f}"
             },
             {
-                "label": "Net Income",
-                "value": f"${abs(net_income):,.2f}",
+                "label": net_income_label,
+                "value": net_income_value,
                 "color": net_income_color
             }
         ])

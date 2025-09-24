@@ -1,9 +1,5 @@
 import os
-from typing import Any, Dict, List, Tuple
-
 import streamlit as st
-from beancount import loader
-from beancount.core import data
 
 import beancount_utils as bc_utils
 from views.financial_health import show_financial_health
@@ -31,7 +27,7 @@ except FileNotFoundError:
     pass  # CSS file not found, continue without custom styling
 
 # Configuration
-BEANCOUNT_FILE: str = "/Users/aaronchan/Projects/Aaron Chan Vault/Ledgers/2025.beancount"
+BEANCOUNT_FILE: str = os.environ.get("BEANCOUNT_FILE", "ledger.beancount")
 
 # UI Constants
 PAGE_TITLES = {
@@ -53,41 +49,6 @@ PAGE_DESCRIPTIONS = {
 }
 
 
-@st.cache_data
-def load_beancount_data() -> Tuple[List[data.Directive], List[Any], Dict[str, Any]]:
-    """Load and parse the beancount file.
-
-    Returns:
-        Tuple of (entries, errors, options_map)
-    """
-    try:
-        if not os.path.exists(BEANCOUNT_FILE):
-            st.error(f"Beancount file not found: {BEANCOUNT_FILE}")
-            st.info(
-                "Please update the BEANCOUNT_FILE path in main.py to point to your ledger file."
-            )
-            return [], [], {}
-
-        entries, errors, options_map = loader.load_file(BEANCOUNT_FILE)
-
-        if errors:
-            st.warning(f"Found {len(errors)} warnings/errors in beancount file:")
-            for error in errors[:5]:  # Show first 5 errors
-                st.warning(f"- {error}")
-            if len(errors) > 5:
-                st.warning(f"... and {len(errors) - 5} more errors")
-
-        return entries, errors, options_map
-
-    except FileNotFoundError:
-        st.error(f"Beancount file not found: {BEANCOUNT_FILE}")
-        st.info("Please update the BEANCOUNT_FILE path in main.py to point to your ledger file.")
-        return [], [], {}
-
-    except Exception as e:
-        st.error(f"Failed to load beancount file: {str(e)}")
-        st.exception(e)
-        return [], [], {}
 
 
 def main() -> None:
@@ -121,8 +82,13 @@ def main() -> None:
     if page != current_page_from_url:
         st.query_params.page = page
 
-    # Load data
-    entries, errors, options_map = load_beancount_data()
+    # Load data with file modification time for cache invalidation
+    try:
+        file_mtime = os.path.getmtime(BEANCOUNT_FILE) if os.path.exists(BEANCOUNT_FILE) else 0
+    except OSError:
+        file_mtime = 0
+
+    entries, errors, options_map = bc_utils.load_beancount_data(BEANCOUNT_FILE, file_mtime)
 
     if not entries:
         st.error(

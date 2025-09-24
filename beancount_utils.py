@@ -1,4 +1,5 @@
 import calendar
+import os
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
@@ -6,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import streamlit as st
+from beancount import loader
 from beancount.core import amount as amount_lib
 from beancount.core import data, getters, inventory, realization
 from beancount.core.number import D
@@ -20,6 +22,49 @@ ACCOUNT_TYPES = {
 }
 
 DEFAULT_CURRENCY = "USD"
+
+
+@st.cache_data
+def load_beancount_data(beancount_file_path: str, _file_mtime: float = None) -> Tuple[List[data.Directive], List[Any], Dict[str, Any]]:
+    """Load and parse the beancount file.
+
+    This is the centralized function for loading beancount data throughout the application.
+    It includes caching to avoid reloading the file on every page refresh.
+
+    Args:
+        beancount_file_path: Path to the beancount file
+
+    Returns:
+        Tuple of (entries, errors, options_map)
+    """
+    try:
+        if not os.path.exists(beancount_file_path):
+            st.error(f"Beancount file not found: {beancount_file_path}")
+            st.info(
+                "Please update the beancount file path in your configuration to point to your ledger file."
+            )
+            return [], [], {}
+
+        entries, errors, options_map = loader.load_file(beancount_file_path)
+
+        if errors:
+            st.warning(f"Found {len(errors)} warnings/errors in beancount file:")
+            for error in errors[:5]:  # Show first 5 errors
+                st.warning(f"- {error}")
+            if len(errors) > 5:
+                st.warning(f"... and {len(errors) - 5} more errors")
+
+        return entries, errors, options_map
+
+    except FileNotFoundError:
+        st.error(f"Beancount file not found: {beancount_file_path}")
+        st.info("Please update the beancount file path in your configuration to point to your ledger file.")
+        return [], [], {}
+
+    except Exception as e:
+        st.error(f"Failed to load beancount file: {str(e)}")
+        st.exception(e)
+        return [], [], {}
 
 
 def get_monthly_income_statement(

@@ -114,10 +114,10 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
         search_description = st.text_input("Search Description")
 
     try:
-        # Get grouped transaction data (one row per transaction entry)
+        # Get individual transaction postings (one row per posting)
         account_filter_param = None if account_filter == "All" else account_filter
 
-        transactions_df = bc_utils.get_grouped_transactions(
+        transactions_df = bc_utils.get_transactions(
             entries,
             options_map,
             account_filter=account_filter_param,
@@ -144,26 +144,37 @@ def show_journal(entries: List, options_map: Dict[str, Any]) -> None:
             st.warning("No transactions match your filters.")
             return
 
-        # Transaction table
-        st.subheader("Transactions")
+        # Transaction table with sum display
+        if account_filter != "All":
+            # Calculate sum and count of transactions for this account
+            transaction_sum = transactions_df["amount"].sum()
+            transaction_count = len(transactions_df)
+
+            # Create header with sum and count aligned to the right
+            header_col1, header_col2 = st.columns([2, 1])
+            with header_col1:
+                st.subheader("Transactions")
+            with header_col2:
+                st.markdown(f'<div style="text-align: right; padding-top: 10px;"><strong>Count: {transaction_count:,} | Sum: ${transaction_sum:,.2f}</strong></div>',
+                           unsafe_allow_html=True)
+        else:
+            st.subheader("Transactions")
 
         # Format the dataframe for display
         display_df = transactions_df.copy()
         display_df = display_df.sort_values("date", ascending=False)
 
         # Clean up account names for display
-        display_df["accounts_clean"] = display_df["accounts"].apply(
-            lambda x: " → ".join([clean_account_name(acc.strip()) for acc in x.split(" → ")]) if " → " in x else clean_account_name(x.replace(" (+more)", "").replace(" (+", " (+"))
-        )
+        display_df["account_clean"] = display_df["account"].apply(clean_account_name)
 
         # Format dates
         display_df["date"] = pd.to_datetime(display_df["date"]).dt.strftime("%Y-%m-%d")
 
         # Add payee if available
-        columns_to_show = ["date", "accounts_clean", "description", "amount", "currency"]
+        columns_to_show = ["date", "account_clean", "description", "amount", "currency"]
         column_config = {
             "date": st.column_config.TextColumn("Date", width="small"),
-            "accounts_clean": st.column_config.TextColumn("Accounts", width="large"),
+            "account_clean": st.column_config.TextColumn("Account", width="large"),
             "description": st.column_config.TextColumn("Description", width="large"),
             "amount": st.column_config.NumberColumn("Amount", format="$%.2f", width="medium"),
             "currency": st.column_config.TextColumn("Curr", width="small"),
