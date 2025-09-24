@@ -1,5 +1,3 @@
-# OurFinance 💰
-
 A personal finance dashboard built with Streamlit that integrates with Beancount accounting files.
 
 ## Features
