@@ -1,4 +1,4 @@
-"""Advanced Financial Forecast Engine for OurFinance."""
+"""Advanced Financial Forecast Engine for Finances."""
 
 import calendar
 from collections import defaultdict

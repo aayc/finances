@@ -1,4 +1,4 @@
-"""Financial Health Dashboard for OurFinance."""
+"""Financial Health Dashboard for Finances."""
 
 from typing import Dict, List, Any, Optional, Tuple
 import streamlit as st

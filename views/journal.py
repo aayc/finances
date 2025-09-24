@@ -1,4 +1,4 @@
-"""Transaction Journal view for OurFinance."""
+"""Transaction Journal view for Finances."""
 
 from typing import Dict, List, Any
 import streamlit as st

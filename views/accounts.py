@@ -1,4 +1,4 @@
-"""Account Information view for OurFinance."""
+"""Account Information view for Finances."""
 
 import streamlit as st
 import pandas as pd

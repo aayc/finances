@@ -1,4 +1,4 @@
-"""Account Balances view for OurFinance."""
+"""Account Balances view for Finances."""
 
 from typing import Dict, List, Any, Tuple
 import streamlit as st

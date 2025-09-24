@@ -10,7 +10,7 @@ from views.forecast import show_forecast
 from views.accounts import show_accounts
 
 st.set_page_config(
-    page_title="OurFinance", page_icon="💰", layout="wide", initial_sidebar_state="expanded"
+    page_title="Finances", page_icon="💰", layout="wide", initial_sidebar_state="expanded"
 )
 
 

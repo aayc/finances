@@ -1,4 +1,4 @@
-"""Financial Forecast view for OurFinance."""
+"""Financial Forecast view for Finances."""
 
 from typing import Dict, List, Any
 import streamlit as st

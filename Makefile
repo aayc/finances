@@ -1,4 +1,4 @@
-# OurFinance Makefile
+# Finances Makefile
 
 # Variables
 VENV_DIR = venv
@@ -10,7 +10,7 @@ STREAMLIT = $(VENV_DIR)/bin/streamlit
 # Default target
 .PHONY: help
 help:
-	@echo "OurFinance Development Commands:"
+	@echo "Finances Development Commands:"
 	@echo "  make setup        - Create virtual environment and install dependencies"
 	@echo "  make serve        - Run the Streamlit application"
 	@echo "  make install      - Install/update dependencies"
@@ -45,7 +45,7 @@ install: $(VENV_DIR)/bin/activate
 # Run the Streamlit application
 .PHONY: serve
 serve: $(VENV_DIR)/bin/activate
-	@echo "🚀 Starting OurFinance application..."
+	@echo "🚀 Starting Finances application..."
 	@echo "Access at: http://localhost:8501"
 	$(STREAMLIT) run main.py
 
@@ -76,7 +76,7 @@ clean:
 # Production serve (for TrueNAS deployment)
 .PHONY: serve-production
 serve-production: $(VENV_DIR)/bin/activate
-	@echo "🚀 Starting OurFinance in production mode..."
+	@echo "🚀 Starting Finances in production mode..."
 	@echo "Access at: http://0.0.0.0:8501"
 	$(STREAMLIT) run main.py --server.port 8501 --server.address 0.0.0.0
 

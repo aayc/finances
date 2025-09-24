@@ -1,4 +1,4 @@
-"""Income Statement view for OurFinance."""
+"""Income Statement view for Finances."""
 
 from typing import Dict, List, Any
 import streamlit as st
