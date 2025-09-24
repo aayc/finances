@@ -82,6 +82,16 @@ def main() -> None:
         index=current_page_index
     )
 
+    # Add refresh button in sidebar
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 Refresh Data", help="Reload data from Azure File Share", type="primary"):
+        # Clear Streamlit cache to force fresh data load
+        st.cache_data.clear()
+        # Clear our Azure cache as well
+        bc_utils._azure_cache.clear()
+        st.sidebar.success("Cache cleared! Reloading...")
+        st.rerun()
+
     # Update URL when page changes
     if page != current_page_from_url:
         st.query_params.page = page
